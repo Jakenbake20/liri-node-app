@@ -34,7 +34,7 @@ function doSomething(){
         console.log("To use liri type an operater in the command line");
         console.log("(concert-this, spotify-this-song, movie-this, do-what-it-says)");
         console.log("followed by your search term.");
-        console.log('example "node liri movie-this toy story"');
+        console.log('example "node liri movie-this Matrix"');
         console.log(`--------------------------------------`);
     }
     logIt += "\n";
@@ -71,7 +71,7 @@ function concertSearch(){
 function getToken(client_id, client_secret){
     return axios({
         url: 'https://accounts.spotify.com/api/token',
-        method: 'post',
+        method: 'GET',
         params: {
             grant_type: 'client_credentials'
         },
@@ -105,7 +105,7 @@ async function getSpotifyData(client_id, client_secret){
             'Authorization': 'Bearer ' + token
         }
     }).then(response => {
-        // console.log(JSON.stringify(response.data, null, 2));
+        console.log(JSON.stringify(response.data, null, 2));
         console.log(`--------------------------------------`);
         for (let t=0; t<3; t++){
             console.log(`Artist    | ${response.data.tracks.items[t].artists[0].name}`);
