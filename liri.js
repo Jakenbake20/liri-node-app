@@ -1,125 +1,156 @@
-var Spotify = require('node-spotify-api');
-var moment = require('moment');
-var request = require("request");
-const dotenv = require("dotenv").config();
-var fs = require('fs');
-const keys = require("./keys");
-var spotify = new Spotify(keys.spotify);
-const bandsInTown = keys.bandsInTown;
-const OMDB = keys.OMDB;
-//Parse command line args
-if (process.argv[2]) {
-  let selection = process.argv[2];
-  if (process.argv[3]) {
-    process.argv.shift();
-    process.argv.shift();
-    process.argv.shift();
-    var queryString = process.argv.join(' ');
-  }
-  //call bot functionality
-  selectOperation(selection, queryString);
-} else logResults('no arguments supplied');
-/**
- * Directs by selection method calls with the Query string
- * @param {string} selection
- *  selection must be concert-this, spotify-this-song, movie-this, or do-what-it-says
- * @param {string} queryString 
- *  user provided search string for use with API call methods
- */
-function selectOperation(selection, queryString) {
-  if (selection === 'concert-this') {
-    searchBandsInTown(queryString);
-  } else if (selection === 'spotify-this-song') {
-    searchSpotify(queryString);
-  } else if (selection === 'movie-this') {
-    searchOMDB(queryString);
-  } else if (selection === 'do-what-it-says') {
-    //import random.txt split on comma then call selectOperation with parsed information
-    fs.readFile('random.txt', 'utf8', function (err, data) {
-      if (err) throw err;
-      let stuff = data.split(',');
-      let test = stuff[1].substring(stuff[1].indexOf('"') + 1, stuff[1].lastIndexOf('"'));
-      selectOperation(stuff[0], test);
-    });
-  }
-}
-/**
- * searches the BandsInTown API with artist information.
- * Displays upcoming event venues, locations and dates
- * @param {string} artist 
- *  search string for API call
- */
-function searchBandsInTown(artist) {
-  if (!artist) artist = 'Third Eye Blind';
-  request(`https://rest.bandsintown.com/artists/${encodeURI(artist)}/events?app_id=codingbootcamp`,
-    function (error, response, body) {
-      if (!error && response.statusCode === 200) {
-        body = JSON.parse(body);
-        logResults(`Results for ${artist}`);
+require("dotenv").config();
+let fs     = require("fs");
+let axios  = require("axios");
+let keys   = require("./keys.js");
+let moment = require('moment');
+moment().format();
+let omdb            = keys.omdb;
+let bandsintown     = keys.bandsintown;
+let spotify         = keys.spotify;
+const client_id     = spotify.id;
+const client_secret = spotify.secret;
 
-        for (let i = 0; i < body.length; i++) {
-          let time = moment(body[i].datetime).format('MM/DD/YYYY');
-          logResults(`Venue: ${body[i].venue.name}`);
-          logResults(`Location: ${body[i].venue.city}, ${body[i].venue.region}, ${body[i].venue.country}`);
-          logResults(`Date: ${time}`)
-        }
-      }
-    });
-}
-/**
- * Searches the OMDB API for movie information by title search
- * Displays various information received from the API
- * @param {string} movie 
- *  search string for API call
- */
-function searchOMDB(movie) {
-  if (!movie) movie = 'Mr. Nobody';
-  request(`http://www.omdbapi.com/?t=${encodeURI(movie)}&y=&plot=short&apikey=${OMDB.id}`,
-    function (error, response, body) {
-      if (!error && response.statusCode === 200) {
-        body = JSON.parse(body);
-        let rtRating = "Not Available";
-        logResults(`Title: ${body.Title}`);
-        logResults(`Release Year: ${body.Year}`);
-        logResults(`IMDB Rating: ${body.imdbRating}`);
-        for (let i = 0; i < body.Ratings.length; i++) {
-          if (body.Ratings[i].Source === 'Rotten Tomatoes')
-            rtRating = body.Ratings[i].Value;
-        }
-        logResults(`Rotten Tomatoes Rating: ${rtRating}`);
-        logResults(`Produced in: ${body.Country}`);
-        logResults(`Language: ${body.Language}`);
-        logResults(`Plot: ${body.Plot}`);
-        logResults(`Actors: ${body.Actors}`);
-      }
-    });
-};
-/**
- * Searches spotify using its node package by track using the song search string
- * Displays Artist, Title, Album and provides a spotify preview url
- * @param {string} song
- *  Search term for API query
- */
-function searchSpotify(song) {
-  if (!song) song = 'The Sign Ace of Base';
-  spotify.search({ type: 'track', query: song }, function (err, data) {
-    if (err) {
-      return logResults('Error occurred: ' + err);
+let operator = process.argv[2];
+let queryArr = process.argv.slice(3);
+let logIt    = "[" + moment().format("MM/DD/YYYY h:mm:ss a") + "] " + process.argv.slice(2).join(" ");
+doSomething();
+
+function doSomething(){
+    if (operator == "do-what-it-says"){
+        let random = fs.readFileSync("./random.txt", "utf8");
+        random   = random.trim().split(",");
+        operator = random[0];
+        queryArr = [random[1]];
+        logIt   += " = " + operator + " " + queryArr;
     }
-    logResults(`Artist(s): ${data.tracks.items[0].artists[0].name}`);
-    logResults(`Song Title: ${data.tracks.items[0].name}`);
-    logResults(`Preview Link: ${data.tracks.items[0].external_urls.spotify}`);
-    logResults(`Album of Track: ${data.tracks.items[0].album.name}`);
-  });
+    if (operator == "concert-this"){
+        concertSearch();
+    } else if (operator == "spotify-this-song"){
+        getSpotifyData(client_id, client_secret);
+    } else if (operator == "movie-this"){
+        movieSearch();
+    } else {
+        console.log(`-------------------------------------`);
+        console.log("To use liri type an operater in the command line");
+        console.log("(concert-this, spotify-this-song, movie-this, do-what-it-says)");
+        console.log("followed by your search term.");
+        console.log('example "node liri movie-this toy story"');
+        console.log(`--------------------------------------`);
+    }
+    logIt += "\n";
+    fs.appendFile("./log.txt", logIt, err=>{if(err)console.log(err)});
 }
-/**
- * Displays content to the console log and writes it to log.txt
- * @param {string} content
- *  information to be logged
- */
-function logResults(content) {
-  fs.appendFile('log.txt', content + '\n', function (err) {
-    if (err) throw err;
-    console.log(content);
-  });
+
+function concertSearch(){
+    let query = "";
+    for (let c in queryArr){
+        query += queryArr[c].replace(/\s/g, "%20");
+        query += "%20";
+    }
+    query = query.replace(/%20\b/, "");
+    let queryURL = "https://rest.bandsintown.com/artists/" + query + "/events?app_id=" + bandsintown.id;
+    
+    axios.get(queryURL).then(function(response){
+        console.log(response.data);
+        console.log(`--------------------------------------`);
+        if (response.data[0] == undefined){
+            console.log("INVALID ARTIST OR NO UPCOMING SHOWS");
+            console.log(`--------------------------------------`);
+        } else {
+            for (let d=0; d<3; d++){
+                let date = moment(response.data[d].datetime).format("LL");
+                console.log(`Venue | ${response.data[d].venue.name}`);
+                console.log(`City  | ${response.data[d].venue.city}, ${response.data[d].venue.region}, ${response.data[d].venue.country}`);
+                console.log(`Date  | ${date}`);
+                console.log(`--------------------------------------`);
+            }
+        }
+    });
 }
+
+function getToken(client_id, client_secret){
+    return axios({
+        url: 'https://accounts.spotify.com/api/token',
+        method: 'post',
+        params: {
+            grant_type: 'client_credentials'
+        },
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        auth: {
+            username: client_id,
+            password: client_secret
+        }
+   });
+}
+
+
+async function getSpotifyData(client_id, client_secret){
+    const tokenData = await getToken(client_id, client_secret);
+    const token = tokenData.data.access_token;
+    
+    let query = "";
+    for (let s in queryArr){
+        query += queryArr[s].replace(/\s/g, "%20");
+        query += "%20";
+    }
+    query = query.replace(/%20\b/, "");
+    let queryURL = "https://api.spotify.com/v1/search?q=" + query + "&type=track&limit=3";
+   
+    axios({
+        url: queryURL,
+        method: 'get',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    }).then(response => {
+        // console.log(JSON.stringify(response.data, null, 2));
+        console.log(`--------------------------------------`);
+        for (let t=0; t<3; t++){
+            console.log(`Artist    | ${response.data.tracks.items[t].artists[0].name}`);
+            console.log(`Song Name | ${response.data.tracks.items[t].name}`);
+            console.log(`Album     | ${response.data.tracks.items[t].album.name}`);
+            console.log(`Preview   | ${response.data.tracks.items[t].preview_url}`);
+            console.log(`--------------------------------------`);
+        }
+        return response.data;
+    }).catch(error => {
+        console.log("INVALID SONG TITLE");
+        console.log(`--------------------------------------`);
+        return error;
+    });
+}
+
+function movieSearch(){
+    let query = "";
+    for (let c in queryArr){
+        query += queryArr[c].replace(/\s/g, "+");
+        query += "+";
+    }
+    query = query.replace(/\+$/, "");
+    if (query == ""){
+        query = "Mr.+Nobody";
+    }
+    let queryURL = "https://www.omdbapi.com/?t=" + query + "&y=&plot=short&apikey=" + omdb.key;
+    
+    axios.get(queryURL).then(function(response){
+        // console.log(response.data);
+        console.log(`--------------------------------------`);
+        if (response.data.Response == 'False'){
+            console.log("INVALID MOVIE TITLE");
+            console.log(`--------------------------------------`);
+        } else {
+                console.log(`Title                  | ${response.data.Title}`);
+                console.log(`Year                   | ${response.data.Year}`);
+                console.log(`IMDB Rating            | ${response.data.Ratings[0].Value}`);
+                console.log(`Rotten Tomatoes Rating | ${response.data.Ratings[1].Value}`);
+                console.log(`Country                | ${response.data.Country}`);
+                console.log(`Language               | ${response.data.Language}`);
+                console.log(`Plot                   | ${response.data.Plot}`);
+                console.log(`Actors                 | ${response.data.Actors}`);
+                console.log(`--------------------------------------`);
+            }
+    });
+}
+
