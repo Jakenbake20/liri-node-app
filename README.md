@@ -13,4 +13,4 @@ While in the directory of liri.js, type "node liri.js " then use the following c
 * movie this
 * do-what-it-says
 
-![Example](url: "..images/example.png)
+![Example](images/example.png)
