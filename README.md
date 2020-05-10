@@ -19,4 +19,4 @@ While in the directory of liri.js, type "node liri.js " then use the following c
 
 ![Concert](images/pearljam1.png)
 
-![Concert](images/pearjam2.png)
+![Concert](images/pearljam2.png)
