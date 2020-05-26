@@ -126,7 +126,7 @@ function movieSearch(){
     let query = "";
     for (let c in queryArr){
         query += queryArr[c].replace(/\s/g, "+");
-        query += "+";
+        query += "+"
     }
     query = query.replace(/\+$/, "");
     if (query == ""){
